@@ -1,0 +1,263 @@
+---
+title: "다변량 HW2 212STG25 이채영"
+output: html_document
+---
+
+#### library 준비
+```{r,results='hide'}
+library(tidyverse)
+library(broom)
+library(dr)
+```
+
+#### data 준비
+```{r}
+LAozone = read.table("http://www-stat.stanford.edu/~tibs/ElemStatLearn/datasets/LAozone.data",sep=",",head=T)
+
+y=LAozone$ozone
+data_x=LAozone[,-c(1,10)]
+head(data_x)
+
+x=data.matrix(data_x, rownames.force = NA)
+head(x)
+
+```
+
+#### #1
+```{r}
+pairs(~vh+wind+humidity+temp+ibh+dpg+ibt+vis,data=LAozone,lower.panel=panel.smooth,pch=20)
+
+```
+
+##### Vis, wind are definitely not elliptically distributed with any of the other variables. Other than those two variables they are elliptically distributed with at least one of the variables. For example, ibh and ibt, temp and ibt, temp and vh, and so on. None of the variables are elliptically distributed with all the other variables.
+
+#### #2
+```{r}
+ozone_pca <- prcomp(data_x, center = T, scale. = T)
+ozone_pca.fit<-augment(ozone_pca, data=data_x)
+pc1_pca<-ozone_pca.fit$.fittedPC1
+pc2_pca<-ozone_pca.fit$.fittedPC2
+
+pairs(~pc1_pca+pc2_pca+LAozone$ozone,lower.panel=panel.smooth,pch=20)
+
+```
+
+##### Pc1 captured an increasing pattern between Y and X. Pc2 doesn't show a particular pattern between Y and X.
+
+#### functions used in #3
+```{r}
+matpower=function(a,alpha){
+  a = (a + t(a))/2
+  tmp = eigen(a)
+  return(tmp$vectors%*%diag((tmp$values)^alpha)%*%
+           t(tmp$vectors))}
+
+center = function(x){
+  return(t(t(x)-apply(x,2,mean)))}
+
+discretize=function(y,h){
+  n=length(y);m=round(n/h)
+  y=y+.00001*mean(y)*rnorm(n)
+  yord =y[order(y)]  #y[order(y)]
+  divpt=numeric();for(i in 1:(h-1)) divpt = c(divpt,yord[i*m+1])
+  y1=rep(0,n);y1[y<divpt[1]]=1;y1[y>=divpt[h-1]]=h
+  for(i in 2:(h-1)) y1[(y>=divpt[i-1])&(y<divpt[i])]=i
+  return(y1)
+}
+
+sir=function(x,y,h,r,ytype){
+  p=ncol(x);n=nrow(x)
+  signrt=matpower(var(x),-1/2)
+  xc=t(t(x)-apply(x,2,mean))
+  xst=xc%*%signrt
+  if(ytype=="continuous") ydis=discretize(y,h)
+  if(ytype=="categorical") ydis=y
+  ylabel=unique(ydis)
+  prob=numeric();exy=numeric()
+  for(i in 1:h) prob=c(prob,length(ydis[ydis==ylabel[i]])/n) 
+  for(i in 1:h) exy=rbind(exy,apply(xst[ydis==ylabel[i],],2,mean))
+  sirmat=t(exy)%*%diag(prob)%*%exy
+  return(signrt%*%eigen(sirmat)$vectors[,1:r])}
+```
+
+#### #3
+```{r}
+#h=2
+ytype='continuous';h=2;r=2
+beta=sir(x,y,h,r,ytype)
+pred=center(x)%*%beta
+pc1_sir<-pred[,1]
+pc2_sir<-pred[,2]
+
+pairs(~pc1_sir+pc2_sir+LAozone$ozone,lower.panel=panel.smooth,pch=20)
+
+
+#h=2, 8, 20 for문으로
+
+for (n in c(2,8,20)){
+  ytype='continuous';h=n;r=2
+  beta=sir(x,y,h,r,ytype)
+  pred=center(x)%*%beta
+  pc1_sir<-pred[,1]
+  pc2_sir<-pred[,2]
+  
+  pairs(~pc1_sir+pc2_sir+LAozone$ozone,lower.panel=panel.smooth,pch=20)
+  
+  
+}
+
+# h=50
+#ytype='continuous';h=50;r=2
+#beta=sir(x,y,h,r,ytype)
+#pred=center(x)%*%beta
+#pc1_sir<-pred[,1]
+#pc2_sir<-pred[,2]
+
+#pairs(~pc1_sir+pc2_sir+LAozone$ozone,lower.panel=panel.smooth,pch=20)
+
+```
+
+##### The dependence on Y seems one-dimensional since pc1 shows a decreasing pattern between X and Y while pc2 doesn't show any particular pattern between them.
+##### h=50 일때만 dim(x)가 양의 값을 가져야 한다는 에러가 뜨는데 해결하지 못했습니다. 
+
+#### #4
+```{r}
+# h=2
+dr_fit <- dr(y~vh+wind+humidity+temp+ibh+dpg+ibt+vis,data=LAozone, numdir=2,method="sir", nslices =2)
+
+plot(dr_fit,pch=20,lower.panel=panel.smooth)
+
+# h=2,8,20,50 for문
+for (n in c(2,8,20,50)){
+  dr_fit <- dr(y~vh+wind+humidity+temp+ibh+dpg+ibt+vis,data=LAozone, numdir=2,method="sir", nslices =n)
+  plot(dr_fit,pch=20,lower.panel=panel.smooth)
+}
+
+```
+
+##### Using dr, the result was the same. Dir1 has a decreasing pattern while Dir2 doesn't show any pattern.
+
+#### functions used in #5
+```{r}
+symmetry = function(a){
+  return((a + t(a))/2)}
+
+pir=function(x,y,m,r){
+  xc=t(t(x)-apply(x,2,mean))
+  signrt=matpower(var(x),-1/2)
+  xstand = xc%*%signrt
+  f=numeric();ystand=(y-mean(y))/sd(y)
+  for(i in 1:m) f = cbind(f, ystand^i) 
+  sigxf=cov(xstand,f);sigff=var(f) 
+  cand=sigxf%*%solve(sigff)%*%t(sigxf)
+  return(signrt%*%eigen(symmetry(cand))$vectors[,1:r])
+}
+```
+
+#### #5
+```{r}
+## 식1
+m=5;r=2;ytype="continuous"
+beta=pir(x,y,m,r)
+pred = center(x) %*% beta 
+
+pc1_pir<-pred[,1]
+pc2_pir<-pred[,2]
+
+pairs(~pc1_pir+pc2_pir+LAozone$ozone,lower.panel=panel.smooth,pch=20)
+```
+
+##### For the first function, the first component captured the decreasing pattern between Y and X while the second component doesn't have a particular pattern.
+
+```{r}
+## 식2
+pir_2=function(x,y,m,r){
+  xc=t(t(x)-apply(x,2,mean))
+  signrt=matpower(var(x),-1/2)
+  xstand = xc%*%signrt
+  f=numeric();ystand=sin(2*pi*((y-mean(y))/sd(y)))
+  for(i in 1:m) f = cbind(f, ystand^i) 
+  sigxf=cov(xstand,f);sigff=var(f) 
+  cand=sigxf%*%solve(sigff)%*%t(sigxf)
+  return(signrt%*%eigen(symmetry(cand))$vectors[,1:r])
+}
+
+m=8;r=2;ytype="continuous"
+beta=pir_2(x,y,m,r)
+pred = center(x) %*% beta 
+
+pc1_pir<-pred[,1]
+pc2_pir<-pred[,2]
+
+pairs(~pc1_pir+pc2_pir+LAozone$ozone,lower.panel=panel.smooth,pch=20)
+
+```
+
+##### In the second function, the pattern seemed similar to the first case but the second component has a slight increasing pattern left between Y and X compared to the first function.
+
+#### functions used in #6
+```{r}
+save=function(x,y,h,r,ytype){
+  p=ncol(x);n=nrow(x)
+  signrt=matpower(var(x),-1/2)
+  xc=t(t(x)-apply(x,2,mean))
+  xst=xc%*%signrt
+  if(ytype=="continuous") ydis=discretize(y,h)
+  if(ytype=="categorical") ydis=y
+  ylabel=unique(ydis)
+  prob=numeric() 
+  for(i in 1:h) prob=c(prob,length(ydis[ydis==ylabel[i]])/n)
+  vxy = array(0,c(p,p,h))
+  for(i in 1:h) vxy[,,i] = var(xst[ydis==ylabel[i],]) 
+  savemat=0
+  for(i in 1:h){
+    savemat=savemat+prob[i]*(vxy[,,i]-diag(p))%*%(vxy[,,i]-diag(p))}
+  return(signrt%*%eigen(savemat)$vectors[,1:r])}
+
+
+```
+
+#### #6
+```{r}
+# h=2
+h=2;r=2;ytype="continuous"
+beta=save(x,y,h,r,ytype)
+
+pred=center(x)%*%beta
+
+pc1_save<-pred[,1]
+pc2_save<-pred[,2]
+
+pairs(~pc1_save+pc2_save+LAozone$ozone,lower.panel=panel.smooth,pch=20)
+
+# h=8
+h=8;r=2;ytype="continuous"
+beta=save(x,y,h,r,ytype)
+
+pred=center(x)%*%beta
+
+pc1_save<-pred[,1]
+pc2_save<-pred[,2]
+
+pairs(~pc1_save+pc2_save+LAozone$ozone,lower.panel=panel.smooth,pch=20)
+```
+
+##### When h=2, the first component shows increasing pattern while the second component shows the opposite pattern.
+##### When h=8, both component show increasing pattern which is different from the first case.
+
+#### #7
+```{r}
+# h=2
+dr_fit <- dr(y~vh+wind+humidity+temp+ibh+dpg+ibt+vis,data=LAozone, numdir=2,method="save", nslices =2)
+
+plot(dr_fit,pch=20,lower.panel=panel.smooth)
+
+
+# h=8
+dr_fit <- dr(y~vh+wind+humidity+temp+ibh+dpg+ibt+vis,data=LAozone, numdir=2,method="save", nslices =8)
+
+plot(dr_fit,pch=20,lower.panel=panel.smooth)
+
+```
+
+##### Using dr, the result is similar to using SAVE when h=2. The first component shows increasing pattern when x is negative then a decreasing pattern in the positive side. When h=8, the result is similar with the first component but the second component is different. With dr, the second component shows a decreasing pattern while SAVE showed increasing pattern.
