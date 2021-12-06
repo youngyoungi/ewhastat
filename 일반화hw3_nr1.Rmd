@@ -1,0 +1,81 @@
+---
+title: "일반화hw3_nr1"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+library(dplyr)
+library(numDeriv)
+library(gradDescent)
+```
+
+```{r}
+beta0 <- rep(0,1000)
+beta1 <- rep(0,1000)
+beta2 <- rep(0,1000)
+start_time <- rep(0,1000)
+end_time <- rep(0,1000)
+time <- rep(0,1000)
+
+beta_glm <- data.frame(beta0, beta1, beta2, start_time, end_time, time)
+beta_nr1 <- data.frame(beta0, beta1, beta2, start_time, end_time, time)
+beta_nr2 <- data.frame(beta0, beta1, beta2, start_time, end_time, time)
+beta_gda <- data.frame(beta0, beta1, beta2, start_time, end_time, time)
+```
+
+```{r}
+# function for method 2
+func.u <- function(x) c(sum(df$y - exp(x[1] + x[2] * df$x + x[3] * df$x^2)/ (1 + exp(x[1] + x[2] * df$x + x[3] * df$x^2))),
+                        sum(df$x * (df$y - exp(x[1] + x[2] * df$x + x[3] * df$x^2)/ (1 + exp(x[1] + x[2] * df$x + x[3] * df$x^2)))),
+                        sum(df$x^2 * (df$y - exp(x[1] + x[2] * df$x + x[3] * df$x^2)/ (1 + exp(x[1] + x[2] * df$x + x[3] * df$x^2)))))
+
+# function for method 3
+func.u2 <- function(x) c(sum(exp(x[1] + x[2] * df$x + x[3] * df$x^2)/ (1 + exp(x[1] + x[2] * df$x + x[3] * df$x^2)) - df$y),
+                         sum(df$x * (exp(x[1] + x[2] * df$x + x[3] * df$x^2)/ (1 + exp(x[1] + x[2] * df$x + x[3] * df$x^2)) - df$y)),
+                         sum((df$x)^2 * (exp(x[1] + x[2] * df$x + x[3] * df$x^2)/ (1 + exp(x[1] + x[2] * df$x + x[3] * df$x^2))-df$y)))
+```
+
+```{r,warning=FALSE,message=FALSE} 
+### Method 2. Newton Raphson - (1)
+for (i in 1:1000) {
+  ### data generation
+  x <- rnorm(1000)
+  z = 4 - 2*x + 3*x^2
+  pr = 1/(1+exp(-z)) 
+  y = rbinom(1000,1,pr)
+  df <- data.frame(y=y, x=x)
+  
+  delta <- matrix(1:3,nrow = 3)
+  xxx <- array(c(1,1,1))
+  niter <- 0
+  
+  beta_nr1$start_time[i] <- Sys.time()
+  
+  while(niter <= 1000) {
+    xx <- xxx # current x value
+    xxx <- as.matrix(xxx) - solve(jacobian(func.u, x = xxx)) %*% func.u(xxx) # new x value
+    #delta <- x - as.matrix(xx)
+    niter <- niter + 1
+  }
+  
+  beta_nr1$end_time[i] <- Sys.time()
+  beta_nr1$time[i] <- beta_nr1$end_time[i] - beta_nr1$start_time[i]
+  
+  beta_nr1$beta0[i] <- xxx[1]
+  beta_nr1$beta1[i] <- xxx[2]
+  beta_nr1$beta2[i] <- xxx[3]
+  
+}
+
+head(beta_nr1)
+
+# mse & system time
+result_nr1 <- data.frame(mse_b0=sum((beta_nr1$beta0 - mean(beta_nr1$beta0,na.rm=TRUE))^2,na.rm=TRUE) / 998,
+                         mse_b1=sum((beta_nr1$beta1 - mean(beta_nr1$beta1,na.rm=TRUE))^2,na.rm=TRUE) / 998,
+                         mse_b2=sum((beta_nr1$beta2 - mean(beta_nr1$beta2,na.rm=TRUE))^2,na.rm=TRUE) / 998,
+                         sum_time=sum(beta_nr1$time,na.rm=TRUE),
+                         mean_time=mean(beta_nr1$time,na.rm=TRUE))
+result_nr1
+```
+  
+
