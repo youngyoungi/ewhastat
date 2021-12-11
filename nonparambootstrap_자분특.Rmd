@@ -1,0 +1,58 @@
+---
+title: "자분특 과제1 212STG25 이채영"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+library(boot)
+library(bootstrap)
+library(dplyr)
+library(tidyverse)
+```
+
+## (a)
+#### 파일 불러오기
+```{r}
+gene<-read.csv("C:\\Users\\SamSung\\Downloads\\leukemia_big.csv",header=T)
+head(gene)
+```
+
+#### 필요에 따라 데이터프레임 조작
+```{r}
+gene_ALL<-gene %>% select(starts_with('ALL'))
+gene_AML<-gene %>% select(starts_with('AML'))
+
+
+gene_ALL_136<-gene_ALL[136,]
+ALL_136<-gene_ALL_136%>% mutate(ALL.0=ALL) %>% select(-ALL) %>%gather('num','value')
+gene_AML_136<-gene_AML[136,]
+AML_136<-gene_AML_136%>% mutate(AML.0=AML) %>% select(-AML) %>%gather('num','value')
+head(ALL_136)
+
+```
+#### ALL: nonparametric bootstrap 수행
+```{r}
+s<-sample(ALL_136$value,1000*length(ALL_136$value),replace=T)
+ALLboot<-apply(matrix(s,ncol=length(ALL_136$value)),1,mean) 
+
+head(ALLboot)
+summary(ALLboot)
+```
+
+## (b)
+#### AML: nonparametric bootstrap 수행
+```{r}
+s<-sample(AML_136$value,1000*length(AML_136$value),replace=T)
+AMLboot<-apply(matrix(s,ncol=length(AML_136$value)),1,mean) 
+
+head(AMLboot)
+summary(AMLboot)
+```
+## (c) plottig histrogram
+```{r}
+
+hist(ALLboot)
+hist(AMLboot)
+```
+##### ALL,AML 평균의 1000번 bootstrap한 결과를 비교해보면 AML이 ALL보다 평균값이 더 크다.
+
