@@ -1,5 +1,5 @@
 ---
-title: "다변량 HW2 212STG25 이채영"
+title: "다변량 HW2"
 output: html_document
 ---
 
