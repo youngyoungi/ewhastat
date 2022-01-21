@@ -1,5 +1,5 @@
 ---
-title: "자분특 과제1 212STG25 이채영"
+title: "자분특 과제1"
 output: word_document
 ---
 
